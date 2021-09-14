@@ -8,10 +8,17 @@ from NetworkPacket import *
 from TransportSegment import *
 from Filter import *
 
+try:
+    from http_parser.parser import HttpParser
+except ImportError:
+    from http_parser.pyparser import HttpParser
+
 
 class NetworkSniffer:
     def __init__(self, filterValues):
         self.filter = Filter( filterValues )
+        self.httpData = []
+        self.parser = HttpParser()
 
     def startCapturing(Self):
         thread = Thread(self.capturePackets, self)
@@ -29,7 +36,7 @@ class NetworkSniffer:
             if ethernet.protocol == 8:
                 ethernet.Packet = IPPacket( ethernet.data )
                 if ethernet.Packet.protocol == 6:
-                    ethernet.Packet.Segment = TCPSegment( ethernet.Packet.data )
+                    ethernet.Packet.Segment = TCPSegment( ethernet.Packet.data, self.httpData, self)
                 elif ethernet.Packet.protocol == 1:   
                     ethernet.Packet.Segment = ICMPPacket( ethernet.Packet.data )
                 elif ethernet.Packet.protocol == 17: 
@@ -43,7 +50,10 @@ class NetworkSniffer:
                     print(ethernet.Packet)
                     print(ethernet.Packet.Segment)
 
-
+    def getParser(self):
+        if self.parser.is_message_complete() and len(self.httpData) == 0:
+            self.parser = HttpParser()
+        return self.parser
     
     
 

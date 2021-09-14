@@ -3,6 +3,8 @@ from NetworkSniffer import *
 from Filter import *
 import sys
 import time
+import threading
+# from pynput import keyboard
 
 logo = ''' 
         ______          _            _   _      _  _           
@@ -21,9 +23,21 @@ logo = '''
 print(logo)
 
 
+def threadFunc(key):
+    try:
+        k = key.char
+        if k == "q":
+            quit()
+    except:
+        k = key.name 
+
+
 
 def main():
     consoleFilter = ConsoleFilter()
+
+    # listener = keyboard.Listener(on_press=threadFunc)
+    # listener.start()
 
     for i in range(1, len(sys.argv)):
         if sys.argv[i] == 'ip':
@@ -38,9 +52,11 @@ def main():
             consoleFilter.TCPFilter()
 
     print("[Network Sniffer]:+ Started...")
-    time.sleep(2)
+    time.sleep(1)
     networkSniffer = NetworkSniffer( consoleFilter.MainFilters )
     networkSniffer.capturePackets()
+
+    # listener.join()
 
 
 main()

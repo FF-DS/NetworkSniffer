@@ -1,8 +1,17 @@
 import struct
 from textwrap import TextWrapper
+import base64
+import zlib
+import gzip
+
+try:
+    from http_parser.parser import HttpParser
+except ImportError:
+    from http_parser.pyparser import HttpParser
 
 class TCPSegment:
-    def __init__(self, data):
+    def __init__(self, data, httpData, netSniffer):
+        self.httpData = httpData
         self.__data = data
         self.source_port = 0
         self.destination_port = 0 
@@ -12,6 +21,7 @@ class TCPSegment:
         self.flags = {}
         self.data = None
         self.type = 'TCP_SEGMENT'
+        self.netSniffer = netSniffer
 
         self.__extract()
 
@@ -42,9 +52,37 @@ class TCPSegment:
         result += "\t| RST : {rst:2d}     | SYN : {syn:2d}    | FIN : {fin:2d}     |\n".format(rst = self.flags['rst'], syn = self.flags['syn'], fin = self.flags['fin'])
         result += "\t+-------------------------------------------+\n"
         result += "\t                   PAYLOAD               \n"
-        result += "\t " + text_wrap.fill(text = str(self.data)) + "\n"
+
+        if self.source_port == 80 or self.destination_port == 80:
+            result = "\t+-------------------------------------------+\n"
+            result += "\t|                HTTP DATA                  |\n"
+            result += "\t+-------------------------------------------+\n"
+
+            try:
+                result += "\t" +  text_wrap.fill(text = self.data.decode('utf-8') ) + "\n"
+            except:
+                self.netSniffer.getParser().execute(self.data, len(self.data))
+                if self.netSniffer.getParser().is_headers_complete():
+                    result += "\t" +  text_wrap.fill(text = str( self.netSniffer.getParser().get_headers() ) )+ "\n"
+                    
+                if self.netSniffer.getParser().is_partial_body():
+                    self.httpData.append( self.netSniffer.getParser().recv_body() )
+
+                if self.netSniffer.getParser().is_message_complete():
+                    try:
+                        decodedText = gzip.decompress( b''.join(self.httpData) )
+                        result += "\t" + text_wrap.fill(text =  str( decodedText, 'utf-8' ) ) + "\n"
+                        self.httpData.clear()
+                    except:
+                        pass
+        else:
+            result += "\t " + text_wrap.fill(text = str(self.data)) + "\n"
+        
         result += "\t+-------------------------------------------+\n"
         return result
+
+    def parseHTTP(self, data):
+        data = self.data.decode('utf-8')
 
 
 class UDPSegment:
